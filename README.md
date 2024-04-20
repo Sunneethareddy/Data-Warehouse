@@ -1,3 +1,4 @@
+<<<<<<< HEAD
          ___        ______     ____ _                 _  ___  
         / \ \      / / ___|   / ___| | ___  _   _  __| |/ _ \ 
        / _ \ \ /\ / /\___ \  | |   | |/ _ \| | | |/ _` | (_) |
@@ -34,3 +35,6 @@ Amazon Redshift: Ensure you have provisioned a Redshift cluster to work with Red
 Amazon S3: Prepare your S3 bucket and ensure that the required data files are stored in the bucket. Set up appropriate permissions and access policies for accessing the S3 objects.
 AWS Cloud9: Created an environment in AWS Cloud9 to develop and execute the project. Ensure that the Cloud9 environment has the necessary permissions to interact with AWS services such as Redshift and S3. Configure the environment with the required dependencies and libraries, such as the Pandas library for data processing.
 we can run the pipeline using the command python filename.py
+=======
+# Data-Warehouse
+>>>>>>> origin/main
