@@ -28,17 +28,16 @@ Refined Table Creation: A refined table named mview_weekly_sales is created to a
 
 3. How to Install and Run the Project
    
-Create a Cloud9 environment on AWS, which runs on an EC2 instance.
-Install the Pandas library in the Cloud9 environment using pip.
-Ensure that the IAM roles used have appropriate permissions to fetch data from Redshift tables and to create schema/tables in Redshift.
-Establish a connection from Cloud9 to Redshift by providing the cluster name, database, user, and respective ARN.
+Create a Cloud9 environment on AWS, which runs on an EC2 instance.
+Install the Pandas library in the Cloud9 environment using pip.
+Ensure that the IAM roles used have appropriate permissions to fetch data from Redshift tables and to create schema/tables in Redshift.
+Establish a connection from Cloud9 to Redshift by providing the cluster name, database, user, and respective ARN.
 
 4.Additional Considerations:
 
 Amazon Redshift: Ensure you have provisioned a Redshift cluster to work with Redshift. Make sure to configure the necessary security groups, VPC settings, and IAM roles for accessing the cluster.
 Amazon S3: Prepare your S3 bucket and ensure that the required data files are stored in the bucket. Set up appropriate permissions and access policies for accessing the S3 objects.
 AWS Cloud9: Created an environment in AWS Cloud9 to develop and execute the project. Ensure that the Cloud9 environment has the necessary permissions to interact with AWS services such as Redshift and S3. Configure the environment with the required dependencies and libraries, such as the Pandas library for data processing.
-we can run the pipeline using the command python filename.py
-=======
-# Data-Warehouse
->>>>>>> origin/main
+we can run the pipeline using the command python filename.py
+
+
