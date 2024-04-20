@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
          ___        ______     ____ _                 _  ___  
         / \ \      / / ___|   / ___| | ___  _   _  __| |/ _ \ 
        / _ \ \ /\ / /\___ \  | |   | |/ _ \| | | |/ _` | (_) |
@@ -7,12 +7,7 @@
  ----------------------------------------------------------------- 
 
 
-Hi there! Welcome to AWS Cloud9!
 
-To get started, create some files, play with the terminal,
-or visit https://docs.aws.amazon.com/console/cloud9/ for our documentation.
-
-Happy coding!
 
 1. Project's Title
 
@@ -33,7 +28,7 @@ Install the Pandas library in the Cloud9 environment using pip.
 Ensure that the IAM roles used have appropriate permissions to fetch data from Redshift tables and to create schema/tables in Redshift.
 Establish a connection from Cloud9 to Redshift by providing the cluster name, database, user, and respective ARN.
 
-4.Additional Considerations:
+4. Additional Considerations
 
 Amazon Redshift: Ensure you have provisioned a Redshift cluster to work with Redshift. Make sure to configure the necessary security groups, VPC settings, and IAM roles for accessing the cluster.
 Amazon S3: Prepare your S3 bucket and ensure that the required data files are stored in the bucket. Set up appropriate permissions and access policies for accessing the S3 objects.
