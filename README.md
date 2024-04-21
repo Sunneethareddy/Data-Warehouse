@@ -41,6 +41,6 @@ Amazon S3: Prepare your S3 bucket and ensure that the required data files are st
 
 AWS Cloud9: Created an environment in AWS Cloud9 to develop and execute the project. Ensure that the Cloud9 environment has the necessary permissions to interact with AWS services such as Redshift and S3. Configure the environment with the required dependencies and libraries, such as the Pandas library for data processing.
 
-we can run the pipeline using the command python filename.py
+we can run the pipeline using the command python3 filename.py
 
 
