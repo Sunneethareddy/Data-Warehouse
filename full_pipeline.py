@@ -9,14 +9,20 @@ def connect_to_redshift_data():
 
 def execute_redshift_query(sql, redshift_data):
     # Execute SQL query using Redshift Data API
-    response = redshift_data.execute_statement(
-        ClusterIdentifier='your_cluster_name',
-        Database='your_db',
-        Sql=sql,
-        SecretArn='your_SecretArn',
-    )
-    execution_id = response['Id']
-    return execution_id
+    try:
+        # Execute SQL query using Redshift Data API
+        response = redshift_data.execute_statement(
+            ClusterIdentifier='your_cluster_name',
+            Database='your_db',
+            Sql=sql,
+            SecretArn='your_SecretArn'
+        )
+        execution_id = response['Id']
+        return execution_id
+    except Exception as e:
+        print(f"Error executing query: {sql}")
+        print(f"Error details: {e}")
+        return None
 def create_tables(redshift_data):
     # SQL queries to create tables
     sql_create_fact_table = '''
@@ -25,6 +31,24 @@ def create_tables(redshift_data):
         sku_id VARCHAR,
         average_unit_standardcost VARCHAR,
         average_unit_landedcost VARCHAR
+    )
+    '''
+    sql_create_fact_trans_table= '''
+    CREATE TABLE IF NOT EXISTS public.fact_trans_tbl (
+        order_id VARCHAR,
+        line_id INTEGER,
+        type VARCHAR,
+        dt VARCHAR,
+        pos_site_id VARCHAR,
+        sku_id VARCHAR,
+        fscldt_id VARCHAR,
+        price_substate_id VARCHAR,
+        sales_units VARCHAR,
+        sales_dollars VARCHAR,
+        discount_dollars FLOAT8,
+        original_order_id VARCHAR,
+        original_line_id VARCHAR
+
     )
     '''
 
@@ -50,6 +74,7 @@ def create_tables(redshift_data):
 
     # Execute SQL queries to create tables
     execute_redshift_query(sql_create_fact_table, redshift_data)
+    execute_redshift_query(sql_create_fact_trans_table, redshift_data)
     execute_redshift_query(sql_create_dimension_table, redshift_data)
     
 def check_table_has_data(table_name, redshift_data):
@@ -60,7 +85,7 @@ def check_table_has_data(table_name, redshift_data):
             ClusterIdentifier='your_cluster_name',
             Database='your_db',
             Sql=sql_query,
-            SecretArn='your_SecretArn',
+            SecretArn='your_SecretArn'
         )
         execution_id = response['Id']
         max_retries = 5
@@ -89,12 +114,20 @@ def load_data_from_s3(redshift_data):
     # Specify S3 bucket and keys for data files
     bucket = 'raw-synergy'
     fact_key = 'fact_averagecosts.dlm'
+    fact_trans_key= 'fact.transactions.dlm'
     dimension_key = 'hier.prod.dlm'
 
     # Load data from S3 to Redshift
     sql_fact_load = f'''
     COPY public.fact_avgs_tbl 
     FROM 's3://{bucket}/{fact_key}'
+    IAM_ROLE 'arn:aws:iam::211125729106:role/glue'
+    DELIMITER '|' 
+    IGNOREHEADER 1
+    '''
+    sql_fact_trans_load = f'''
+    COPY public.fact_trans_tbl 
+    FROM 's3://{bucket}/{fact_trans_key}'
     IAM_ROLE 'arn:aws:iam::211125729106:role/glue'
     DELIMITER '|' 
     IGNOREHEADER 1
@@ -110,15 +143,17 @@ def load_data_from_s3(redshift_data):
     
     # Execute SQL queries to load data from S3 to Redshift
     execution_id_fact=execute_redshift_query(sql_fact_load, redshift_data)
+    execution_id_fact=execute_redshift_query(sql_fact_trans_load, redshift_data)
     execution_id_dimension=execute_redshift_query(sql_dimension_load, redshift_data)
     while True:
         fact_status = redshift_data.describe_statement(Id=execution_id_fact)['Status']
+        fact_trans_status = redshift_data.describe_statement(Id=execution_id_fact)['Status']
         dimension_status = redshift_data.describe_statement(Id=execution_id_dimension)['Status']
         
-        if fact_status == 'FINISHED' and dimension_status == 'FINISHED':
+        if fact_status == 'FINISHED' and dimension_status == 'FINISHED' and fact_trans_status == 'FINISHED':
             print("Data loading queries have finished execution. Proceeding further.")
             return True
-        elif fact_status == 'FAILED' or dimension_status == 'FAILED':
+        elif fact_status == 'FAILED' or dimension_status == 'FAILED' and fact_trans_status == 'FAILED':
             print("Data loading queries have failed. Please check Redshift Data API.")
             return False
         else:
@@ -177,8 +212,6 @@ def check_foreign_key_constraints(df_fact, df_dimension):
     foreign_key_violations = df_fact[~df_fact['sku_id'].isin(df_dimension['sku_id'])]
     return foreign_key_violations if not foreign_key_violations.empty else False
 
-
-
 def schema_exists(schema_name, redshift_data):
     # Check if schema exists in Redshift
     sql = f"SELECT 1 FROM information_schema.schemata WHERE schema_name = '{schema_name}'"
@@ -187,7 +220,7 @@ def schema_exists(schema_name, redshift_data):
             ClusterIdentifier='your_cluster_name',
             Database='your_db',
             Sql=sql,
-            SecretArn='your_SecretArn',
+            SecretArn='your_SecretArn'
         )
         return len(response.get('Records', [])) > 0
     except Exception as e:
@@ -202,11 +235,53 @@ def create_schema(schema_name, redshift_data):
             ClusterIdentifier='your_cluster_name',
             Database='your_db',
             Sql=sql,
-            SecretArn='your_SecretArn',
+            SecretArn='your_SecretArn'
         )
-
+def create_materialized_view(redshift_data):
+    mview_query = """
+    CREATE TABLE IF NOT EXISTS stages.mview_weekly_sales AS
+    SELECT
+        pos_site_id,
+        sku_id,
+        fscldt_id,
+        price_substate_id,
+        type,
+        SUM(sales_units) AS total_sales_units,
+        SUM(sales_dollars) AS total_sales_dollars,
+        SUM(discount_dollars) AS total_discount_dollars
+    FROM
+        public.fact_trans_tbl 
+    GROUP BY
+        pos_site_id,
+        sku_id,
+        fscldt_id,
+        price_substate_id,
+        type
+    """
+    execution_id = execute_redshift_query(mview_query, redshift_data)
+    if execution_id:
+        print("Materialized view creation query submitted. Waiting for completion...")
+        while True:
+            try:
+                result_response = redshift_data.get_statement_result(Id=execution_id)
+                status = result_response.get('Status', '')
+                if status == 'FINISHED':
+                    print("Materialized view created successfully.")
+                    break
+                elif status == 'FAILED':
+                    print("Failed to create materialized view.")
+                    break
+                else:
+                    print("Materialized view creation in progress...")
+                    time.sleep(30)  # Wait for 30 seconds before checking again
+            except redshift_data.exceptions.ResourceNotFoundException:
+                print("Query does not have result yet. Waiting for results...")
+                time.sleep(30)  # Wait for 30 seconds before retrying
+    else:
+        print("Failed to submit materialized view creation query.")
 
 def main():
+    
     # Connect to Redshift Data API
     redshift_data = connect_to_redshift_data()
     
@@ -369,35 +444,10 @@ def main():
             print("Executed staging query:", query)
         else:
             print("Failed to execute staging query:", query)
-
+            
+    # Call the function to create materialized view
     # Step c: Create materialized view for weekly sales aggregation
-    
-    mview_query = """
-    CREATE TABLE IF NOT EXISTS public.mview_weekly_sales AS
-    SELECT
-        pos_site_id,
-        sku_id,
-        fscldt_id,
-        price_substate_id,
-        type,
-        SUM(sales_units) AS total_sales_units,
-        SUM(sales_dollars) AS total_sales_dollars,
-        SUM(discount_dollars) AS total_discount_dollars
-    FROM
-        public.fact_trans_tbl 
-    GROUP BY
-        pos_site_id,
-        sku_id,
-        fscldt_id,
-        price_substate_id,
-        type
-    """
-    execution_id_mview = execute_redshift_query(mview_query, redshift_data)
-    if execution_id_mview:
-        print("Materialized view created successfully.")
-    else:
-        print("Failed to create materialized view.")
-    
+    create_materialized_view(redshift_data)
 
 if __name__ == "__main__":
     main()
