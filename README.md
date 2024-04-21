@@ -9,7 +9,7 @@
 
 
 
-1. Project's Title
+1. Project Title
 
 DATA WAREHOUSE PIPELINE WITH AMAZON REDSHIFT
 
