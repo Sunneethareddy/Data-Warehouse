@@ -1,5 +1,6 @@
 import boto3
 import pandas as pd
+import time
 
 def connect_to_redshift_data():
     # Connect to Redshift Data API
@@ -9,14 +10,123 @@ def connect_to_redshift_data():
 def execute_redshift_query(sql, redshift_data):
     # Execute SQL query using Redshift Data API
     response = redshift_data.execute_statement(
-        ClusterIdentifier='your_cluster_name',
-        Database='your_db',
+        ClusterIdentifier='redshift-cluster-1',
+        Database='dev',
         Sql=sql,
-        SecretArn='your_SecretArn'
+        SecretArn='arn:aws:secretsmanager:us-east-1:211125729106:secret:redshift!redshift-cluster-1-awsuser-TgcN15'
     )
     execution_id = response['Id']
     return execution_id
+def create_tables(redshift_data):
+    # SQL queries to create tables
+    sql_create_fact_table = '''
+    CREATE TABLE IF NOT EXISTS public.fact_avgs_tbl (
+        fscldt_id VARCHAR,
+        sku_id VARCHAR,
+        average_unit_standardcost VARCHAR,
+        average_unit_landedcost VARCHAR
+    )
+    '''
 
+    sql_create_dimension_table = '''
+    CREATE TABLE IF NOT EXISTS public.hier_prod_tbl (
+        sku_id VARCHAR,
+        sku_label VARCHAR,
+        stylclr_id VARCHAR,
+        stylclr_label VARCHAR,
+        styl_id VARCHAR,
+        styl_label VARCHAR,
+        subcat_id VARCHAR,
+        subcat_label VARCHAR,
+        cat_id VARCHAR,
+        cat_label VARCHAR,
+        dept_id VARCHAR,
+        dept_label VARCHAR,
+        issvc INTEGER,
+        isasmbly INTEGER,
+        isnfs INTEGER
+    )
+    '''
+
+    # Execute SQL queries to create tables
+    execute_redshift_query(sql_create_fact_table, redshift_data)
+    execute_redshift_query(sql_create_dimension_table, redshift_data)
+    
+def check_table_has_data(table_name, redshift_data):
+    # Query to check if the table has any rows
+    sql_query = f"SELECT COUNT(*) FROM {table_name} LIMIT 10"
+    try:
+        response = redshift_data.execute_statement(
+            ClusterIdentifier='redshift-cluster-1',
+            Database='dev',
+            Sql=sql_query,
+            SecretArn='arn:aws:secretsmanager:us-east-1:211125729106:secret:redshift!redshift-cluster-1-awsuser-TgcN15'
+        )
+        execution_id = response['Id']
+        max_retries = 5
+        retries = 0
+        while retries < max_retries:
+            try:
+                result_response = redshift_data.get_statement_result(Id=execution_id)
+                row_count = int(result_response['Records'][0][0]['longValue'])
+                print("Row count:", row_count)
+                return row_count > 0
+            except redshift_data.exceptions.ResourceNotFoundException:
+                print("Query does not have result yet. Waiting for results...")
+                retries += 1
+                time.sleep(30)  # Wait for 30 seconds before retrying
+        
+        print("Failed to fetch data after maximum retries.")
+        return False
+    except Exception as e:
+        print(f"Error checking if table {table_name} has data:", e)
+        return False
+
+def load_data_from_s3(redshift_data):
+    # Connect to S3
+    s3 = boto3.client('s3')
+
+    # Specify S3 bucket and keys for data files
+    bucket = 'raw-synergy'
+    fact_key = 'fact_averagecosts.dlm'
+    dimension_key = 'hier.prod.dlm'
+
+    # Load data from S3 to Redshift
+    sql_fact_load = f'''
+    COPY public.fact_avgs_tbl 
+    FROM 's3://{bucket}/{fact_key}'
+    IAM_ROLE 'arn:aws:iam::211125729106:role/glue'
+    DELIMITER '|' 
+    IGNOREHEADER 1
+    '''
+
+    sql_dimension_load = f'''
+    COPY public.hier_prod_tbl 
+    FROM 's3://{bucket}/{dimension_key}'
+    IAM_ROLE 'arn:aws:iam::211125729106:role/glue'
+    DELIMITER '|' 
+    IGNOREHEADER 1
+    '''
+    
+    # Execute SQL queries to load data from S3 to Redshift
+    execution_id_fact=execute_redshift_query(sql_fact_load, redshift_data)
+    execution_id_dimension=execute_redshift_query(sql_dimension_load, redshift_data)
+    while True:
+        fact_status = redshift_data.describe_statement(Id=execution_id_fact)['Status']
+        dimension_status = redshift_data.describe_statement(Id=execution_id_dimension)['Status']
+        
+        if fact_status == 'FINISHED' and dimension_status == 'FINISHED':
+            print("Data loading queries have finished execution. Proceeding further.")
+            return True
+        elif fact_status == 'FAILED' or dimension_status == 'FAILED':
+            print("Data loading queries have failed. Please check Redshift Data API.")
+            return False
+        else:
+            print("Data loading queries are still in progress. Waiting...")
+            #time.sleep(30)  
+    # time.sleep(60)
+
+# 
 def fetch_data_from_redshift(execution_id, redshift_data):
     # Fetch data from Redshift Data 
     response = None
@@ -50,6 +160,7 @@ def fetch_data_from_redshift(execution_id, redshift_data):
     else:
         print("Failed to fetch data from Redshift.")
         return None
+
 def check_null_values(df):
     # Replace empty strings with NaN
     df.replace('', pd.NA, inplace=True)
@@ -73,10 +184,10 @@ def schema_exists(schema_name, redshift_data):
     sql = f"SELECT 1 FROM information_schema.schemata WHERE schema_name = '{schema_name}'"
     try:
         response = redshift_data.execute_statement(
-            ClusterIdentifier='your_cluster_name',
-            Database='your_db',
+            ClusterIdentifier='redshift-cluster-1',
+            Database='dev',
             Sql=sql,
-            SecretArn='your_SecretArn'
+            SecretArn='arn:aws:secretsmanager:us-east-1:211125729106:secret:redshift!redshift-cluster-1-awsuser-TgcN15'
         )
         return len(response.get('Records', [])) > 0
     except Exception as e:
@@ -88,23 +199,37 @@ def create_schema(schema_name, redshift_data):
     if not schema_exists(schema_name, redshift_data):
         sql = f"CREATE SCHEMA {schema_name}"
         redshift_data.execute_statement(
-            ClusterIdentifier='your_cluster_name',
-            Database='your_db',
+            ClusterIdentifier='redshift-cluster-1',
+            Database='dev',
             Sql=sql,
-            SecretArn='your_SecretArn'
+            SecretArn='arn:aws:secretsmanager:us-east-1:211125729106:secret:redshift!redshift-cluster-1-awsuser-TgcN15'
         )
 
 
 def main():
     # Connect to Redshift Data API
     redshift_data = connect_to_redshift_data()
+    
+    # Step 1: Create tables
+    create_tables(redshift_data)
+    #Step 2: Check if tables has data loaded
+    fact_table_has_data = check_table_has_data('public.fact_avgs_tbl', redshift_data)
+    print("checked")
+    dimension_table_has_data = check_table_has_data('public.hier_prod_tbl', redshift_data)
+
+    # If tables have data, proceed with further steps
+    if fact_table_has_data and dimension_table_has_data:
+        print("Tables already have data. Proceeding with further steps...")
+    else:
+        # Step 2: Load data from S3 to Redshift
+        load_data_from_s3(redshift_data)
 
     # Step a: Load raw data into staging tables and perform data quality checks
     sql_fact = """
-    SELECT * FROM fact_avgs_tbl
+    SELECT * FROM public.fact_avgs_tbl
     """
     sql_dimension = """
-    SELECT * FROM hier_prod_tbl
+    SELECT * FROM public.hier_prod_tbl
     """
     execution_id_fact = execute_redshift_query(sql_fact, redshift_data)
     execution_id_dimension = execute_redshift_query(sql_dimension, redshift_data)
@@ -133,7 +258,7 @@ def main():
                 print("Null values found in dimension table.")
             
             duplicate_rows_dimension = check_primary_key_uniqueness(df_dimension, ['sku_id'])
-            if duplicate_rows_fact is not None:
+            if duplicate_rows_dimension is not None:
                 print("Primary key uniqueness violation found in fact table:")
                 print(duplicate_rows_dimension)
             foreign_key_violations = check_foreign_key_constraints(df_fact, df_dimension)
