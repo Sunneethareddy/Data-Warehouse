@@ -10,10 +10,10 @@ def connect_to_redshift_data():
 def execute_redshift_query(sql, redshift_data):
     # Execute SQL query using Redshift Data API
     response = redshift_data.execute_statement(
-        ClusterIdentifier='redshift-cluster-1',
-        Database='dev',
+        ClusterIdentifier='your_cluster_name',
+        Database='your_db',
         Sql=sql,
-        SecretArn='arn:aws:secretsmanager:us-east-1:211125729106:secret:redshift!redshift-cluster-1-awsuser-TgcN15'
+        SecretArn='your_SecretArn',
     )
     execution_id = response['Id']
     return execution_id
@@ -57,10 +57,10 @@ def check_table_has_data(table_name, redshift_data):
     sql_query = f"SELECT COUNT(*) FROM {table_name} LIMIT 10"
     try:
         response = redshift_data.execute_statement(
-            ClusterIdentifier='redshift-cluster-1',
-            Database='dev',
+            ClusterIdentifier='your_cluster_name',
+            Database='your_db',
             Sql=sql_query,
-            SecretArn='arn:aws:secretsmanager:us-east-1:211125729106:secret:redshift!redshift-cluster-1-awsuser-TgcN15'
+            SecretArn='your_SecretArn',
         )
         execution_id = response['Id']
         max_retries = 5
@@ -184,10 +184,10 @@ def schema_exists(schema_name, redshift_data):
     sql = f"SELECT 1 FROM information_schema.schemata WHERE schema_name = '{schema_name}'"
     try:
         response = redshift_data.execute_statement(
-            ClusterIdentifier='redshift-cluster-1',
-            Database='dev',
+            ClusterIdentifier='your_cluster_name',
+            Database='your_db',
             Sql=sql,
-            SecretArn='arn:aws:secretsmanager:us-east-1:211125729106:secret:redshift!redshift-cluster-1-awsuser-TgcN15'
+            SecretArn='your_SecretArn',
         )
         return len(response.get('Records', [])) > 0
     except Exception as e:
@@ -199,10 +199,10 @@ def create_schema(schema_name, redshift_data):
     if not schema_exists(schema_name, redshift_data):
         sql = f"CREATE SCHEMA {schema_name}"
         redshift_data.execute_statement(
-            ClusterIdentifier='redshift-cluster-1',
-            Database='dev',
+            ClusterIdentifier='your_cluster_name',
+            Database='your_db',
             Sql=sql,
-            SecretArn='arn:aws:secretsmanager:us-east-1:211125729106:secret:redshift!redshift-cluster-1-awsuser-TgcN15'
+            SecretArn='your_SecretArn',
         )
 
 
