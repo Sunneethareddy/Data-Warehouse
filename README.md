@@ -17,7 +17,7 @@ DATA WAREHOUSE PIPELINE WITH AMAZON REDSHIFT
    
 This project aims to build a data pipeline that facilitates the loading of raw data into a data warehouse from external storage such as AWS S3. The pipeline is constructed using Amazon Redshift, and it consists of the following components:
 
-Data Loading: Raw data is loaded into the data warehouse from AWS S3. Due to limitations with AWS Glue and AWS Lambda, the loading process was executed manually through AWS Redshift Spectrum.
+Data Loading: Raw data is loaded into the data warehouse from AWS S3. Due to limitations with AWS Glue and AWS Lambda, the data pipeline was build using Amazon Cloud9 service.
 
 Data Quality Checks: Basic data quality checks are performed on the loaded data, including checks for non-null values, primary key uniqueness, data types, and foreign key constraints between fact and dimension tables.
 
